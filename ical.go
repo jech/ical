@@ -165,8 +165,8 @@ func findCalendars(client *caldav.Client) ([]caldav.Calendar, error) {
 }
 
 type event struct {
-	start, end           time.Time
-	summary, description string
+	start, end                     time.Time
+	summary, description, location string
 }
 
 type events []event
@@ -176,7 +176,7 @@ func (es events) Swap(i, j int)      { es[i], es[j] = es[j], es[i] }
 func (es events) Less(i, j int) bool { return es[i].start.Before(es[j].start) }
 
 func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end time.Time, includeDescription bool) (events, error) {
-	props := []string{"SUMMARY", "DTSTART", "DTEND"}
+	props := []string{"SUMMARY", "DTSTART", "DTEND", "LOCATION"}
 	if includeDescription {
 		props = append(props, "DESCRIPTION")
 	}
@@ -218,6 +218,9 @@ func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end 
 						ical.PropDescription,
 					)
 				}
+				location, _ := e.Props.Text(
+					ical.PropLocation,
+				)
 				if ropt != nil {
 					ropt.Dtstart = dtstart
 					rr, err := rrule.NewRRule(*ropt)
@@ -232,6 +235,7 @@ func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end 
 							end:         tend,
 							summary:     summary,
 							description: description,
+							location:    location,
 						}
 						es = append(es, e)
 					}
@@ -242,6 +246,7 @@ func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end 
 							end:         dtend,
 							summary:     summary,
 							description: description,
+							location:    location,
 						},
 					)
 				}
@@ -255,12 +260,17 @@ func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end 
 
 func printEvent(w io.Writer, e event, verbose bool) error {
 	duration := e.end.Sub(e.start)
+	var location string
+	if e.location != "" {
+		location = ", " + e.location
+	}
 	if e.start.Hour() == 0 && e.start.Minute() == 0 &&
 		duration == 24*time.Hour {
 		_, err := fmt.Fprintf(w,
-			"%v              %v\n",
+			"%v              %v%v\n",
 			e.start.Format("Mon 2006-01-02"),
 			e.summary,
+			location,
 		)
 		if err != nil {
 			return err
@@ -280,10 +290,11 @@ func printEvent(w io.Writer, e event, verbose bool) error {
 		} else {
 			d = duration.String()
 		}
-		_, err := fmt.Fprintf(w, "%v %v %v\n",
+		_, err := fmt.Fprintf(w, "%v %v %v%v\n",
 			e.start.Format("Mon 2006-01-02 15:04"),
 			d,
 			e.summary,
+			location,
 		)
 		if err != nil {
 			return err
