@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -151,17 +152,19 @@ func readConfig(filename string) (*config, error) {
 }
 
 func findCalendars(client *caldav.Client) ([]caldav.Calendar, error) {
-	principal, err := client.FindCurrentUserPrincipal()
+	principal, err := client.FindCurrentUserPrincipal(context.Background())
 	if err != nil {
 		return nil, err
 	}
 
-	homeSet, err := client.FindCalendarHomeSet(principal)
+	homeSet, err := client.FindCalendarHomeSet(
+		context.Background(), principal,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	return client.FindCalendars(homeSet)
+	return client.FindCalendars(context.Background(), homeSet)
 }
 
 type event struct {
@@ -201,7 +204,9 @@ func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end 
 	es := events(make([]event, 0))
 
 	for _, c := range calendars {
-		objs, err := client.QueryCalendar(c.Path, &query)
+		objs, err := client.QueryCalendar(
+			context.Background(), c.Path, &query,
+		)
 		if err != nil {
 			return nil, err
 		}
