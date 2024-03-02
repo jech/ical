@@ -208,59 +208,71 @@ func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end 
 			context.Background(), c.Path, &query,
 		)
 		if err != nil {
-			return nil, err
+			log.Print("QueryCalendar(%v): %v", c.Name, err)
+			continue
 		}
 		for _, o := range objs {
 			for _, e := range o.Data.Events() {
-				dtstart, _ := e.DateTimeStart(time.Local)
-				dtend, _ := e.DateTimeEnd(time.Local)
-				duration := dtend.Sub(dtstart)
-				ropt, _ := e.Props.RecurrenceRule()
-				summary, _ := e.Props.Text(ical.PropSummary)
-				var description string
-				if includeDescription {
-					description, _ = e.Props.Text(
-						ical.PropDescription,
-					)
-				}
-				location, _ := e.Props.Text(
-					ical.PropLocation,
+				e, err := parseEvent(
+					e, start, end, includeDescription,
 				)
-				if ropt != nil {
-					ropt.Dtstart = dtstart
-					rr, err := rrule.NewRRule(*ropt)
-					if err != nil {
-						return nil, err
-					}
-					ts := rr.Between(start, end, true)
-					for _, t := range ts {
-						tend := t.Add(duration)
-						e := event{
-							start:       t,
-							end:         tend,
-							summary:     summary,
-							description: description,
-							location:    location,
-						}
-						es = append(es, e)
-					}
-				} else {
-					es = append(es,
-						event{
-							start:       dtstart,
-							end:         dtend,
-							summary:     summary,
-							description: description,
-							location:    location,
-						},
-					)
+				if err != nil {
+					log.Println("parseEvent:", err)
+					continue
 				}
+				es = append(es, e...)
 			}
 		}
 	}
 
 	sort.Sort(es)
 	return es, nil
+}
+
+func parseEvent(e ical.Event, start, end time.Time, includeDescription bool) ([]event, error) {
+	dtstart, _ := e.DateTimeStart(time.Local)
+	dtend, _ := e.DateTimeEnd(time.Local)
+	duration := dtend.Sub(dtstart)
+	ropt, _ := e.Props.RecurrenceRule()
+	summary, _ := e.Props.Text(ical.PropSummary)
+	var description string
+	if includeDescription {
+		description, _ = e.Props.Text(
+			ical.PropDescription,
+		)
+	}
+	location, _ := e.Props.Text(
+		ical.PropLocation,
+	)
+	if ropt != nil {
+		ropt.Dtstart = dtstart
+		rr, err := rrule.NewRRule(*ropt)
+		if err != nil {
+			return nil, err
+		}
+		ts := rr.Between(start, end, true)
+		es := make([]event, 0, len(ts))
+		for _, t := range ts {
+			tend := t.Add(duration)
+			ee := event{
+				start:       t,
+				end:         tend,
+				summary:     summary,
+				description: description,
+				location:    location,
+			}
+			es = append(es, ee)
+		}
+		return es, nil
+	}
+	ee := event{
+		start:       dtstart,
+		end:         dtend,
+		summary:     summary,
+		description: description,
+		location:    location,
+	}
+	return []event{ee}, nil
 }
 
 func printEvent(w io.Writer, e event, verbose bool) error {
