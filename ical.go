@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"time"
 
@@ -172,13 +172,7 @@ type event struct {
 	summary, description, location string
 }
 
-type events []event
-
-func (es events) Len() int           { return len(es) }
-func (es events) Swap(i, j int)      { es[i], es[j] = es[j], es[i] }
-func (es events) Less(i, j int) bool { return es[i].start.Before(es[j].start) }
-
-func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end time.Time, includeDescription bool) (events, error) {
+func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end time.Time, includeDescription bool) ([]event, error) {
 	props := []string{"SUMMARY", "DTSTART", "DTEND", "LOCATION"}
 	if includeDescription {
 		props = append(props, "DESCRIPTION")
@@ -201,7 +195,7 @@ func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end 
 		},
 	}
 
-	es := events(make([]event, 0))
+	es := make([]event, 0)
 
 	for _, c := range calendars {
 		objs, err := client.QueryCalendar(
@@ -225,7 +219,9 @@ func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end 
 		}
 	}
 
-	sort.Sort(es)
+	slices.SortFunc(es, func(a, b event) int {
+		return a.start.Compare(b.start)
+	})
 	return es, nil
 }
 
