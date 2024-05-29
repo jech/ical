@@ -208,7 +208,7 @@ func queryEvents(client *caldav.Client, calendars []caldav.Calendar, start, end 
 			context.Background(), c.Path, &query,
 		)
 		if err != nil {
-			log.Print("QueryCalendar(%v): %v", c.Name, err)
+			log.Printf("QueryCalendar(%v): %v", c.Name, err)
 			continue
 		}
 		for _, o := range objs {
